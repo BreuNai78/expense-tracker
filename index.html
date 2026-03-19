@@ -2,403 +2,132 @@
 
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Expense Ledger</title>
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
-  <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: linear-gradient(135deg, #0f0c29, #1a1a3e, #24243e); min-height: 100vh; }
-    .cal-cell:hover { background: rgba(139,92,246,0.15) !important; cursor: pointer; }
-    .cal-cell.today { box-shadow: inset 0 0 0 2px #a78bfa; }
-    .entry-chip { display:flex; align-items:center; gap:4px; font-size:10px; padding:2px 5px; border-radius:4px; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
-    .btn { cursor:pointer; border:none; border-radius:8px; font-family:inherit; transition:all 0.2s; }
-    .btn:hover { opacity:0.85; transform:translateY(-1px); }
-    input, select { background:#1e1b4b; border:1px solid #4c1d95; color:#e2e8f0; border-radius:8px; padding:8px 12px; font-family:inherit; font-size:14px; width:100%; outline:none; }
-    input:focus, select:focus { border-color:#a78bfa; }
-    .summary-card { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:16px 20px; }
-    .week-badge { display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:999px; font-size:11px; font-family:'DM Mono',monospace; }
-    select option { background: #1e1b4b; }
-    .sync-dot { width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:5px; }
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-    .syncing { animation: pulse 1s infinite; }
-  </style>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Expense Ledger</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:linear-gradient(135deg,#0f0c29,#1a1a3e,#24243e);min-height:100vh;font-family:Georgia,serif;color:#e2e8f0;padding:24px 16px}
+h1{font-family:'Playfair Display',serif;font-size:32px;font-weight:900;background:linear-gradient(90deg,#c4b5fd,#818cf8,#a5f3fc);-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-align:center}
+h2{font-family:'Playfair Display',serif;font-size:24px;font-weight:700}
+h3{font-family:'Playfair Display',serif;font-size:18px;font-weight:600}
+.wrap{max-width:900px;margin:0 auto}
+.btn{cursor:pointer;border:none;border-radius:8px;font-family:Georgia,serif;transition:all .2s}
+.btn:hover{opacity:.85}
+.btn-primary{background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;padding:9px 20px;font-size:14px}
+.btn-nav{background:rgba(99,102,241,.2);color:#c4b5fd;padding:8px 18px;font-size:20px}
+.btn-green{background:linear-gradient(135deg,#065f46,#047857);color:#d1fae5;padding:9px 22px;font-size:13px;font-family:'DM Mono',monospace}
+.btn-edit{background:rgba(99,102,241,.2);color:#a5b4fc;padding:4px 10px;font-size:12px}
+.btn-del{background:rgba(239,68,68,.15);color:#f87171;padding:4px 10px;font-size:12px}
+.btn-cancel{background:rgba(255,255,255,.06);color:#94a3b8;padding:10px 20px;font-size:14px}
+.summary-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:24px}
+.card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:16px 20px}
+.card-label{font-size:11px;font-family:'DM Mono',monospace;margin-bottom:4px}
+.card-value{font-family:'Playfair Display',serif;font-size:20px;font-weight:700}
+.nav-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.cal{background:rgba(255,255,255,.03);border-radius:16px;border:1px solid rgba(255,255,255,.07);overflow:hidden;margin-bottom:24px}
+.cal-header{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid rgba(255,255,255,.06)}
+.cal-dow{padding:10px 0;text-align:center;font-size:11px;color:#64748b;font-family:'DM Mono',monospace;letter-spacing:1px}
+.cal-row{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid rgba(255,255,255,.04)}
+.cal-row:last-child{border-bottom:none}
+.cal-cell{min-height:80px;padding:6px 7px;cursor:pointer;transition:background .15s;border-left:1px solid rgba(255,255,255,.04)}
+.cal-cell:first-child{border-left:none}
+.cal-cell:hover{background:rgba(139,92,246,.15)}
+.cal-cell.today{box-shadow:inset 0 0 0 2px #a78bfa}
+.cal-cell.selected{background:rgba(139,92,246,.2)}
+.cal-empty{min-height:80px;background:rgba(0,0,0,.15)}
+.cell-top{display:flex;justify-content:space-between;align-items:flex-start}
+.cell-day{font-size:13px;font-family:'DM Mono',monospace;color:#cbd5e1}
+.cell-day.today{color:#a78bfa;font-weight:700}
+.chip{display:flex;align-items:center;gap:4px;font-size:10px;padding:2px 5px;border-radius:4px;margin-top:2px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.week-bar{padding:5px 12px;background:rgba(0,0,0,.2);display:flex;gap:10px;align-items:center;border-bottom:1px solid rgba(255,255,255,.04);flex-wrap:wrap}
+.week-badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:999px;font-size:11px;font-family:'DM Mono',monospace}
+.panel{background:rgba(255,255,255,.04);border-radius:16px;padding:20px 24px;margin-bottom:20px}
+.panel-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.entry-row{display:flex;align-items:center;gap:12px;padding:10px 14px;background:rgba(0,0,0,.2);border-radius:10px;margin-bottom:8px}
+.entry-info{flex:1}
+.entry-desc{font-size:14px;font-weight:500}
+.entry-cat{font-size:11px;color:#64748b;font-family:'DM Mono',monospace}
+.entry-amt{font-family:'DM Mono',monospace;font-size:15px;font-weight:600}
+.day-total{display:flex;justify-content:flex-end;margin-top:6px;font-family:'DM Mono',monospace;font-size:13px;color:#94a3b8}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.form-group label{font-size:11px;color:#94a3b8;font-family:'DM Mono',monospace;display:block;margin-bottom:5px}
+input,select{background:#1e1b4b;border:1px solid #4c1d95;color:#e2e8f0;border-radius:8px;padding:8px 12px;font-family:Georgia,serif;font-size:14px;width:100%;outline:none}
+input:focus,select:focus{border-color:#a78bfa}
+select option{background:#1e1b4b}
+.form-btns{display:flex;gap:10px}
+.sync-row{display:flex;justify-content:center;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.sync-badge{display:flex;align-items:center;padding:9px 16px;background:rgba(255,255,255,.05);border-radius:8px;font-size:12px;font-family:'DM Mono',monospace}
+.sync-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.pulsing{animation:pulse 1s infinite}
+.loading-msg{text-align:center;padding:60px 0;color:#64748b;font-family:'DM Mono',monospace;font-size:13px}
+.empty-msg{color:#475569;font-size:13px;text-align:center;padding:20px 0}
+</style>
 </head>
 <body>
-  <div id="root"></div>
-  <script type="text/babel">
-    const { useState, useMemo, useEffect } = React;
-
-```
-const SUPABASE_URL = "https://wqhqcekyzojjxeasshhw.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndxaHFjZWt5em9qanhlYXNzaGh3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4Nzg1MTIsImV4cCI6MjA4OTQ1NDUxMn0.5Ynx_B09N31lUFeoR0Sr8GTHhxuJD8OnpWPyOWJpSlc";
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-function getUserId() {
-  let uid = localStorage.getItem("expense_uid");
-  if (!uid) { uid = "user_" + Math.random().toString(36).slice(2,11); localStorage.setItem("expense_uid", uid); }
-  return uid;
-}
-const USER_ID = getUserId();
-
-const CATEGORIES = {
-  food:      { label: "Food",      color: "#f59e0b", icon: "🍽" },
-  transport: { label: "Transport", color: "#3b82f6", icon: "🚗" },
-  shopping:  { label: "Shopping",  color: "#ec4899", icon: "🛍" },
-  health:    { label: "Health",    color: "#10b981", icon: "💊" },
-  bills:     { label: "Bills",     color: "#8b5cf6", icon: "📄" },
-  income:    { label: "Income",    color: "#22c55e", icon: "💰" },
-  other:     { label: "Other",     color: "#94a3b8", icon: "•"  },
-};
-
-const today = new Date();
-const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-
-function getDaysInMonth(y, m) { return new Date(y, m + 1, 0).getDate(); }
-function getFirstDay(y, m)    { return new Date(y, m, 1).getDay(); }
-function getWeekNum(date) {
-  const d = new Date(date); d.setHours(0,0,0,0);
-  d.setDate(d.getDate() + 4 - (d.getDay() || 7));
-  const ys = new Date(d.getFullYear(), 0, 1);
-  return Math.ceil(((d - ys) / 86400000 + 1) / 7);
-}
-
-function App() {
-  const [year,  setYear]  = useState(today.getFullYear());
-  const [month, setMonth] = useState(today.getMonth());
-  const [entries, setEntries] = useState([]);
-  const [selectedDay, setSelectedDay] = useState(null);
-  const [showForm,    setShowForm]    = useState(false);
-  const [editId,      setEditId]      = useState(null);
-  const [form, setForm] = useState({ description:"", amount:"", type:"expense", category:"food" });
-  const [syncStatus, setSyncStatus] = useState("loading");
-
-  useEffect(() => {
-    async function load() {
-      try {
-        setSyncStatus("loading");
-        const { data, error } = await supabase
-          .from("entries").select("*").eq("user_id", USER_ID).order("date", { ascending: true });
-        if (error) throw error;
-        setEntries((data || []).map(e => ({ ...e, amount: parseFloat(e.amount) })));
-        setSyncStatus("synced");
-      } catch(e) {
-        console.error(e);
-        setSyncStatus("error");
-      }
-    }
-    load();
-  }, []);
-
-  const monthStr = `${year}-${String(month+1).padStart(2,"0")}`;
-  const byDate = useMemo(() => {
-    const m = {};
-    entries.forEach(e => { (m[e.date] = m[e.date] || []).push(e); });
-    return m;
-  }, [entries]);
-
-  const monthEntries = useMemo(() => entries.filter(e => e.date.startsWith(monthStr)), [entries, monthStr]);
-  const monthIncome  = useMemo(() => monthEntries.filter(e=>e.amount>0).reduce((s,e)=>s+e.amount,0), [monthEntries]);
-  const monthExpense = useMemo(() => monthEntries.filter(e=>e.amount<0).reduce((s,e)=>s+e.amount,0), [monthEntries]);
-  const monthNet     = useMemo(() => monthEntries.reduce((s,e)=>s+e.amount,0), [monthEntries]);
-
-  const weeklyTotals = useMemo(() => {
-    const m = {};
-    monthEntries.forEach(e => {
-      const wk = getWeekNum(new Date(e.date+"T12:00:00"));
-      if (!m[wk]) m[wk] = { income:0, expense:0 };
-      e.amount > 0 ? (m[wk].income += e.amount) : (m[wk].expense += e.amount);
-    });
-    return m;
-  }, [monthEntries]);
-
-  const daysInMonth = getDaysInMonth(year, month);
-  const firstDay    = getFirstDay(year, month);
-  const monthName   = new Date(year, month).toLocaleString("default", { month:"long" });
-
-  function prevMonth() { if(month===0){setYear(y=>y-1);setMonth(11);}else setMonth(m=>m-1); setSelectedDay(null);setShowForm(false); }
-  function nextMonth() { if(month===11){setYear(y=>y+1);setMonth(0);}else setMonth(m=>m+1); setSelectedDay(null);setShowForm(false); }
-
-  function openAdd(day) {
-    const ds = `${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
-    setSelectedDay(ds); setEditId(null);
-    setForm({ description:"", amount:"", type:"expense", category:"food" });
-    setShowForm(true);
-  }
-  function openEdit(entry) {
-    setSelectedDay(entry.date); setEditId(entry.id);
-    setForm({ description:entry.description, amount:Math.abs(entry.amount).toString(), type:entry.amount>=0?"income":"expense", category:entry.category });
-    setShowForm(true);
-  }
-
-  async function save() {
-    if (!form.description || !form.amount) return;
-    const amt = parseFloat(form.amount) * (form.type==="expense" ? -1 : 1);
-    const cat = form.type==="income" ? "income" : form.category;
-    setSyncStatus("syncing");
-    try {
-      if (editId) {
-        const { data } = await supabase.from("entries").update({ description:form.description, amount:amt, category:cat }).eq("id", editId).select();
-        if (data) setEntries(prev => prev.map(e => e.id===editId ? {...e, description:form.description, amount:amt, category:cat} : e));
-      } else {
-        const { data } = await supabase.from("entries").insert({ user_id:USER_ID, date:selectedDay, description:form.description, amount:amt, category:cat }).select();
-        if (data) setEntries(prev => [...prev, { ...data[0], amount: parseFloat(data[0].amount) }]);
-      }
-    } catch(e) { console.error(e); }
-    setSyncStatus("synced"); setShowForm(false);
-  }
-
-  async function del(id) {
-    setSyncStatus("syncing");
-    try {
-      await supabase.from("entries").delete().eq("id", id);
-      setEntries(prev => prev.filter(e => e.id!==id));
-    } catch(e) { console.error(e); }
-    setSyncStatus("synced");
-  }
-
-  const cells = [];
-  for (let i=0;i<firstDay;i++) cells.push(null);
-  for (let d=1;d<=daysInMonth;d++) cells.push(d);
-  const rows = [];
-  for (let i=0;i<cells.length;i+=7) rows.push(cells.slice(i,i+7));
-
-  const selEntries = selectedDay ? (byDate[selectedDay] || []) : [];
-  const selNet = selEntries.reduce((s,e)=>s+e.amount,0);
-  const fmt = n => `${n>=0?"+":""}$${Math.abs(n).toLocaleString("en-US",{minimumFractionDigits:2})}`;
-
-  function exportToExcel() {
-    const wb = XLSX.utils.book_new();
-    const byMonth = {};
-    entries.forEach(e => { const key=e.date.slice(0,7); if(!byMonth[key])byMonth[key]=[]; byMonth[key].push(e); });
-    if (!Object.keys(byMonth).length) { alert("No entries to export yet!"); return; }
-    Object.keys(byMonth).sort().forEach(mk => {
-      const [y,m] = mk.split("-");
-      const label = new Date(parseInt(y),parseInt(m)-1).toLocaleString("default",{month:"long",year:"numeric"});
-      const data = byMonth[mk].sort((a,b)=>a.date.localeCompare(b.date));
-      const rs = [["Date","Description","Category","Type","Amount ($)"]];
-      data.forEach(e => rs.push([e.date, e.description, CATEGORIES[e.category]?.label||e.category, e.amount>=0?"Income":"Expense", parseFloat(Math.abs(e.amount).toFixed(2))]));
-      const inc = data.filter(e=>e.amount>0).reduce((s,e)=>s+e.amount,0);
-      const exp = data.filter(e=>e.amount<0).reduce((s,e)=>s+e.amount,0);
-      rs.push([],["","","","Total Income",parseFloat(inc.toFixed(2))],["","","","Total Expenses",parseFloat(Math.abs(exp).toFixed(2))],["","","","Net",parseFloat((inc+exp).toFixed(2))]);
-      const ws = XLSX.utils.aoa_to_sheet(rs);
-      ws["!cols"] = [{wch:14},{wch:28},{wch:14},{wch:14},{wch:14}];
-      XLSX.utils.book_append_sheet(wb, ws, label.slice(0,31));
-    });
-    XLSX.writeFile(wb, "Expense_Ledger.xlsx");
-  }
-
-  const syncColor = syncStatus==="synced"?"#4ade80":syncStatus==="error"?"#f87171":"#fbbf24";
-  const syncLabel = syncStatus==="synced"?"☁ Synced":syncStatus==="syncing"?"Saving...":syncStatus==="loading"?"Loading...":"⚠ Offline";
-
-  return (
-    <div style={{ minHeight:"100vh", color:"#e2e8f0", padding:"24px 16px", fontFamily:"'Georgia','Times New Roman',serif" }}>
-      <div style={{ maxWidth:900, margin:"0 auto" }}>
-
-        <div style={{ textAlign:"center", marginBottom:28 }}>
-          <h1 style={{ fontFamily:"'Playfair Display',serif", fontSize:36, fontWeight:900,
-            background:"linear-gradient(90deg,#c4b5fd,#818cf8,#a5f3fc)",
-            WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>Expense Ledger</h1>
-          <p style={{ color:"#94a3b8", marginTop:4, fontSize:13, fontFamily:"'DM Mono',monospace" }}>Track · Reflect · Balance</p>
-          <div style={{ display:"flex", justifyContent:"center", gap:10, marginTop:14, flexWrap:"wrap" }}>
-            <button className="btn" onClick={exportToExcel}
-              style={{ background:"linear-gradient(135deg,#065f46,#047857)", color:"#d1fae5", padding:"9px 22px", fontSize:13, fontFamily:"'DM Mono',monospace" }}>
-              ⬇ Export to Excel
-            </button>
-            <div style={{ display:"flex", alignItems:"center", padding:"9px 16px", background:"rgba(255,255,255,0.05)", borderRadius:8, fontSize:12, fontFamily:"'DM Mono',monospace", color:syncColor }}>
-              <span className={`sync-dot${syncStatus==="syncing"||syncStatus==="loading"?" syncing":""}`} style={{ background:syncColor }}></span>
-              {syncLabel}
-            </div>
-          </div>
-        </div>
-
-        {syncStatus==="loading" && (
-          <div style={{ textAlign:"center", padding:"60px 0", color:"#64748b", fontFamily:"'DM Mono',monospace", fontSize:13 }}>
-            Loading your entries from the cloud...
-          </div>
-        )}
-
-        {syncStatus==="error" && (
-          <div style={{ textAlign:"center", padding:"40px 20px", color:"#f87171", fontFamily:"'DM Mono',monospace", fontSize:13, background:"rgba(239,68,68,0.08)", borderRadius:12, marginBottom:20 }}>
-            ⚠ Could not connect to cloud. Check your internet connection and refresh.
-          </div>
-        )}
-
-        {(syncStatus==="synced"||syncStatus==="syncing") && <>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12, marginBottom:24 }}>
-            <div className="summary-card" style={{ borderColor:"rgba(34,197,94,0.3)" }}>
-              <div style={{ fontSize:11, color:"#86efac", fontFamily:"'DM Mono',monospace", marginBottom:4 }}>INCOME</div>
-              <div style={{ fontSize:22, fontFamily:"'Playfair Display',serif", fontWeight:700, color:"#4ade80" }}>+${monthIncome.toLocaleString("en-US",{minimumFractionDigits:2})}</div>
-            </div>
-            <div className="summary-card" style={{ borderColor:"rgba(239,68,68,0.3)" }}>
-              <div style={{ fontSize:11, color:"#fca5a5", fontFamily:"'DM Mono',monospace", marginBottom:4 }}>EXPENSES</div>
-              <div style={{ fontSize:22, fontFamily:"'Playfair Display',serif", fontWeight:700, color:"#f87171" }}>${Math.abs(monthExpense).toLocaleString("en-US",{minimumFractionDigits:2})}</div>
-            </div>
-            <div className="summary-card" style={{ borderColor:monthNet>=0?"rgba(99,102,241,0.4)":"rgba(239,68,68,0.3)" }}>
-              <div style={{ fontSize:11, color:"#c4b5fd", fontFamily:"'DM Mono',monospace", marginBottom:4 }}>NET</div>
-              <div style={{ fontSize:22, fontFamily:"'Playfair Display',serif", fontWeight:700, color:monthNet>=0?"#a5b4fc":"#f87171" }}>{fmt(monthNet)}</div>
-            </div>
-          </div>
-
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
-            <button className="btn" onClick={prevMonth} style={{ background:"rgba(99,102,241,0.2)", color:"#c4b5fd", padding:"8px 18px", fontSize:18 }}>‹</button>
-            <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:26, fontWeight:700 }}>{monthName} {year}</h2>
-            <button className="btn" onClick={nextMonth} style={{ background:"rgba(99,102,241,0.2)", color:"#c4b5fd", padding:"8px 18px", fontSize:18 }}>›</button>
-          </div>
-
-          <div style={{ background:"rgba(255,255,255,0.03)", borderRadius:16, border:"1px solid rgba(255,255,255,0.07)", overflow:"hidden", marginBottom:24 }}>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
-              {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d=>(
-                <div key={d} style={{ padding:"10px 0", textAlign:"center", fontSize:11, color:"#64748b", fontFamily:"'DM Mono',monospace", letterSpacing:1 }}>{d}</div>
-              ))}
-            </div>
-            {rows.map((row,ri) => {
-              const firstReal = row.find(d=>d!==null);
-              let wkNum=null, wkData=null;
-              if (firstReal) {
-                wkNum = getWeekNum(new Date(`${year}-${String(month+1).padStart(2,'0')}-${String(firstReal).padStart(2,'0')}T12:00:00`));
-                wkData = weeklyTotals[wkNum];
-              }
-              return (
-                <div key={ri}>
-                  <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", borderBottom:ri<rows.length-1?"1px solid rgba(255,255,255,0.04)":"none" }}>
-                    {row.map((day,ci) => {
-                      if (!day) return <div key={ci} style={{ minHeight:80, background:"rgba(0,0,0,0.15)" }}/>;
-                      const ds = `${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
-                      const de = byDate[ds] || [];
-                      const isToday = ds===todayStr, isSel = selectedDay===ds;
-                      const dayNet = de.reduce((s,e)=>s+e.amount,0);
-                      return (
-                        <div key={ci} className={`cal-cell${isToday?" today":""}`}
-                          onClick={()=>{ setSelectedDay(isSel?null:ds); setShowForm(false); }}
-                          style={{ minHeight:80, padding:"6px 7px", borderLeft:ci>0?"1px solid rgba(255,255,255,0.04)":"none",
-                            background:isSel?"rgba(139,92,246,0.2)":"transparent", transition:"background 0.15s" }}>
-                          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
-                            <span style={{ fontSize:13, fontWeight:isToday?700:400, color:isToday?"#a78bfa":"#cbd5e1", fontFamily:"'DM Mono',monospace" }}>{day}</span>
-                            {de.length>0 && <span style={{ fontSize:10, color:dayNet>=0?"#4ade80":"#f87171", fontFamily:"'DM Mono',monospace" }}>{dayNet>=0?"+":""}{dayNet.toFixed(0)}</span>}
-                          </div>
-                          {de.slice(0,2).map(e=>(
-                            <div key={e.id} className="entry-chip" style={{ background:CATEGORIES[e.category]?.color+"22", color:CATEGORIES[e.category]?.color }}>
-                              <span>{CATEGORIES[e.category]?.icon}</span>
-                              <span style={{ overflow:"hidden", textOverflow:"ellipsis" }}>{e.description}</span>
-                            </div>
-                          ))}
-                          {de.length>2 && <div style={{ fontSize:9, color:"#64748b", marginTop:2 }}>+{de.length-2} more</div>}
-                        </div>
-                      );
-                    })}
-                  </div>
-                  {wkData && (
-                    <div style={{ padding:"5px 12px", background:"rgba(0,0,0,0.2)", borderBottom:ri<rows.length-1?"1px solid rgba(255,255,255,0.04)":"none", display:"flex", gap:10, alignItems:"center" }}>
-                      <span style={{ fontSize:10, color:"#475569", fontFamily:"'DM Mono',monospace" }}>WK {wkNum}</span>
-                      {wkData.income>0  && <span className="week-badge" style={{ background:"rgba(34,197,94,0.12)", color:"#4ade80" }}>+${wkData.income.toFixed(2)}</span>}
-                      {wkData.expense<0 && <span className="week-badge" style={{ background:"rgba(239,68,68,0.12)", color:"#f87171" }}>${Math.abs(wkData.expense).toFixed(2)}</span>}
-                      <span className="week-badge" style={{ background:"rgba(139,92,246,0.12)", color:"#c4b5fd", marginLeft:"auto" }}>
-                        Net: {(wkData.income+wkData.expense)>=0?"+":""}${(wkData.income+wkData.expense).toFixed(2)}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          {selectedDay && (
-            <div style={{ background:"rgba(255,255,255,0.04)", borderRadius:16, border:"1px solid rgba(139,92,246,0.3)", padding:"20px 24px", marginBottom:20 }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
-                <h3 style={{ fontFamily:"'Playfair Display',serif", fontSize:18 }}>
-                  {new Date(selectedDay+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}
-                </h3>
-                <button className="btn" onClick={()=>openAdd(parseInt(selectedDay.split("-")[2]))}
-                  style={{ background:"linear-gradient(135deg,#7c3aed,#4f46e5)", color:"#fff", padding:"7px 16px", fontSize:13 }}>
-                  + Add Entry
-                </button>
-              </div>
-              {selEntries.length===0
-                ? <p style={{ color:"#475569", fontSize:13, textAlign:"center", padding:"20px 0" }}>No entries for this day. Click + Add Entry to start.</p>
-                : (
-                  <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                    {selEntries.map(e=>(
-                      <div key={e.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 14px", background:"rgba(0,0,0,0.2)", borderRadius:10, border:`1px solid ${CATEGORIES[e.category]?.color}33` }}>
-                        <span style={{ fontSize:18 }}>{CATEGORIES[e.category]?.icon}</span>
-                        <div style={{ flex:1 }}>
-                          <div style={{ fontSize:14, fontWeight:500 }}>{e.description}</div>
-                          <div style={{ fontSize:11, color:"#64748b", fontFamily:"'DM Mono',monospace" }}>{CATEGORIES[e.category]?.label}</div>
-                        </div>
-                        <div style={{ fontFamily:"'DM Mono',monospace", fontSize:15, fontWeight:600, color:e.amount>=0?"#4ade80":"#f87171" }}>
-                          {e.amount>=0?"+":""}${Math.abs(e.amount).toFixed(2)}
-                        </div>
-                        <button className="btn" onClick={()=>openEdit(e)} style={{ background:"rgba(99,102,241,0.2)", color:"#a5b4fc", padding:"4px 10px", fontSize:12 }}>Edit</button>
-                        <button className="btn" onClick={()=>del(e.id)}   style={{ background:"rgba(239,68,68,0.15)", color:"#f87171", padding:"4px 10px", fontSize:12 }}>✕</button>
-                      </div>
-                    ))}
-                    <div style={{ display:"flex", justifyContent:"flex-end", marginTop:6, fontFamily:"'DM Mono',monospace", fontSize:13, color:"#94a3b8" }}>
-                      Day total: <span style={{ marginLeft:8, fontWeight:600, color:selNet>=0?"#4ade80":"#f87171" }}>{fmt(selNet)}</span>
-                    </div>
-                  </div>
-                )
-              }
-            </div>
-          )}
-
-          {showForm && (
-            <div style={{ background:"rgba(255,255,255,0.04)", borderRadius:16, border:"1px solid rgba(139,92,246,0.4)", padding:"20px 24px" }}>
-              <h3 style={{ fontFamily:"'Playfair Display',serif", fontSize:18, marginBottom:16 }}>{editId?"Edit Entry":"New Entry"}</h3>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
-                <div>
-                  <label style={{ fontSize:11, color:"#94a3b8", fontFamily:"'DM Mono',monospace", display:"block", marginBottom:5 }}>DESCRIPTION</label>
-                  <input value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="e.g. Coffee, Rent..."/>
-                </div>
-                <div>
-                  <label style={{ fontSize:11, color:"#94a3b8", fontFamily:"'DM Mono',monospace", display:"block", marginBottom:5 }}>AMOUNT ($)</label>
-                  <input type="number" min="0" step="0.01" value={form.amount} onChange={e=>setForm(f=>({...f,amount:e.target.value}))} placeholder="0.00"/>
-                </div>
-                <div>
-                  <label style={{ fontSize:11, color:"#94a3b8", fontFamily:"'DM Mono',monospace", display:"block", marginBottom:5 }}>TYPE</label>
-                  <select value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value,category:e.target.value==="income"?"income":f.category}))}>
-                    <option value="expense">Expense</option>
-                    <option value="income">Income</option>
-                  </select>
-                </div>
-                {form.type==="expense" && (
-                  <div>
-                    <label style={{ fontSize:11, color:"#94a3b8", fontFamily:"'DM Mono',monospace", display:"block", marginBottom:5 }}>CATEGORY</label>
-                    <select value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))}>
-                      {Object.entries(CATEGORIES).filter(([k])=>k!=="income").map(([k,v])=>(
-                        <option key={k} value={k}>{v.icon} {v.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-              </div>
-              <div style={{ display:"flex", gap:10 }}>
-                <button className="btn" onClick={save} style={{ background:"linear-gradient(135deg,#7c3aed,#4f46e5)", color:"#fff", padding:"10px 24px", fontSize:14, flex:1 }}>
-                  {editId?"Save Changes":"Add Entry"}
-                </button>
-                <button className="btn" onClick={()=>setShowForm(false)} style={{ background:"rgba(255,255,255,0.06)", color:"#94a3b8", padding:"10px 20px", fontSize:14 }}>
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
-
-          <p style={{ textAlign:"center", color:"#334155", fontSize:11, marginTop:24, fontFamily:"'DM Mono',monospace" }}>
-            Click any day to view or add entries · Data syncs across all your devices ☁
-          </p>
-        </>}
-      </div>
+<div class="wrap">
+  <div style="text-align:center;margin-bottom:28px">
+    <h1>Expense Ledger</h1>
+    <p style="color:#94a3b8;margin-top:4px;font-size:13px;font-family:'DM Mono',monospace">Track · Reflect · Balance</p>
+    <div class="sync-row">
+      <button class="btn btn-green" onclick="exportToExcel()">&#x2B07; Export to Excel</button>
+      <div class="sync-badge"><span class="sync-dot pulsing" id="syncDot" style="background:#fbbf24"></span><span id="syncLabel">Loading...</span></div>
     </div>
-  );
-}
-
-ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
-```
-
-  </script>
+  </div>
+  <div id="loadingMsg" class="loading-msg">Loading your entries from the cloud...</div>
+  <div id="app" style="display:none">
+    <div class="summary-grid">
+      <div class="card" style="border-color:rgba(34,197,94,.3)"><div class="card-label" style="color:#86efac">INCOME</div><div class="card-value" style="color:#4ade80" id="sumIncome">+$0.00</div></div>
+      <div class="card" style="border-color:rgba(239,68,68,.3)"><div class="card-label" style="color:#fca5a5">EXPENSES</div><div class="card-value" style="color:#f87171" id="sumExpense">$0.00</div></div>
+      <div class="card" id="netCard" style="border-color:rgba(99,102,241,.4)"><div class="card-label" style="color:#c4b5fd">NET</div><div class="card-value" style="color:#a5b4fc" id="sumNet">+$0.00</div></div>
+    </div>
+    <div class="nav-row">
+      <button class="btn btn-nav" onclick="prevMonth()">&#8249;</button>
+      <h2 id="monthLabel"></h2>
+      <button class="btn btn-nav" onclick="nextMonth()">&#8250;</button>
+    </div>
+    <div class="cal" id="calendar"></div>
+    <div id="dayPanel"></div>
+    <div id="formPanel"></div>
+    <p style="text-align:center;color:#334155;font-size:11px;margin-top:24px;font-family:'DM Mono',monospace">Click any day to view or add entries &middot; Data syncs across all your devices</p>
+  </div>
+</div>
+<script>
+const SURL="https://wqhqcekyzojjxeasshhw.supabase.co";
+const SKEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndxaHFjZWt5em9qanhlYXNzaGh3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4Nzg1MTIsImV4cCI6MjA4OTQ1NDUxMn0.5Ynx_B09N31lUFeoR0Sr8GTHhxuJD8OnpWPyOWJpSlc";
+const db=supabase.createClient(SURL,SKEY);
+function getUID(){let u=localStorage.getItem("expense_uid");if(!u){u="user_"+Math.random().toString(36).slice(2,11);localStorage.setItem("expense_uid",u)}return u}
+const UID=getUID();
+const CATS={food:{label:"Food",color:"#f59e0b",icon:"🍽"},transport:{label:"Transport",color:"#3b82f6",icon:"🚗"},shopping:{label:"Shopping",color:"#ec4899",icon:"🛍"},health:{label:"Health",color:"#10b981",icon:"💊"},bills:{label:"Bills",color:"#8b5cf6",icon:"📄"},income:{label:"Income",color:"#22c55e",icon:"💰"},other:{label:"Other",color:"#94a3b8",icon:"•"}};
+const now=new Date();
+const todayStr=fd(now);
+let yr=now.getFullYear(),mo=now.getMonth(),entries=[],selDay=null,editId=null;
+function fd(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+function fa(n){return(n>=0?"+":"")+"$"+Math.abs(n).toLocaleString("en-US",{minimumFractionDigits:2})}
+function gd(y,m){return new Date(y,m+1,0).getDate()}
+function gf(y,m){return new Date(y,m,1).getDay()}
+function gwn(ds){const d=new Date(ds+"T12:00:00");d.setHours(0,0,0,0);d.setDate(d.getDate()+4-(d.getDay()||7));const ys=new Date(d.getFullYear(),0,1);return Math.ceil(((d-ys)/86400000+1)/7)}
+function setSync(s){const dot=document.getElementById("syncDot"),lbl=document.getElementById("syncLabel");dot.classList.remove("pulsing");if(s==="synced"){dot.style.background="#4ade80";lbl.textContent="☁ Synced"}else if(s==="syncing"||s==="loading"){dot.style.background="#fbbf24";lbl.textContent=s==="syncing"?"Saving...":"Loading...";dot.classList.add("pulsing")}else{dot.style.background="#f87171";lbl.textContent="⚠ Offline"}}
+async function loadEntries(){setSync("loading");const{data,error}=await db.from("entries").select("*").eq("user_id",UID).order("date",{ascending:true});if(error){setSync("error");document.getElementById("loadingMsg").textContent="⚠ Could not connect. Check internet and refresh.";return}entries=(data||[]).map(e=>({...e,amount:parseFloat(e.amount)}));setSync("synced");document.getElementById("loadingMsg").style.display="none";document.getElementById("app").style.display="block";render()}
+function render(){renderSummary();renderCalendar();document.getElementById("monthLabel").textContent=new Date(yr,mo).toLocaleString("default",{month:"long"})+" "+yr}
+function renderSummary(){const ms=yr+"-"+String(mo+1).padStart(2,"0");const me=entries.filter(e=>e.date.startsWith(ms));const inc=me.filter(e=>e.amount>0).reduce((s,e)=>s+e.amount,0);const exp=me.filter(e=>e.amount<0).reduce((s,e)=>s+e.amount,0);const net=inc+exp;document.getElementById("sumIncome").textContent="+$"+inc.toLocaleString("en-US",{minimumFractionDigits:2});document.getElementById("sumExpense").textContent="$"+Math.abs(exp).toLocaleString("en-US",{minimumFractionDigits:2});document.getElementById("sumNet").textContent=fa(net);document.getElementById("sumNet").style.color=net>=0?"#a5b4fc":"#f87171";document.getElementById("netCard").style.borderColor=net>=0?"rgba(99,102,241,.4)":"rgba(239,68,68,.3)"}
+function renderCalendar(){const ms=yr+"-"+String(mo+1).padStart(2,"0");const me=entries.filter(e=>e.date.startsWith(ms));const bd={};me.forEach(e=>{(bd[e.date]=bd[e.date]||[]).push(e)});const bw={};me.forEach(e=>{const wk=gwn(e.date);if(!bw[wk])bw[wk]={income:0,expense:0};e.amount>0?(bw[wk].income+=e.amount):(bw[wk].expense+=e.amount)});const dim=gd(yr,mo);const fd2=gf(yr,mo);const cells=[];for(let i=0;i<fd2;i++)cells.push(null);for(let d=1;d<=dim;d++)cells.push(d);while(cells.length%7!==0)cells.push(null);let html='<div class="cal-header">';["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].forEach(d=>{html+=`<div class="cal-dow">${d}</div>`});html+="</div>";for(let r=0;r<cells.length/7;r++){const row=cells.slice(r*7,(r+1)*7);const fr=row.find(d=>d!==null);let wn=null,wd=null;if(fr){const ds=yr+"-"+String(mo+1).padStart(2,"0")+"-"+String(fr).padStart(2,"0");wn=gwn(ds);wd=bw[wn]}html+='<div class="cal-row">';row.forEach(day=>{if(!day){html+='<div class="cal-empty"></div>';return}const ds=yr+"-"+String(mo+1).padStart(2,"0")+"-"+String(day).padStart(2,"0");const de=bd[ds]||[];const it=ds===todayStr;const is=ds===selDay;const dn=de.reduce((s,e)=>s+e.amount,0);let cls="cal-cell"+(it?" today":"")+(is?" selected":"");let chips="";de.slice(0,2).forEach(e=>{const c=CATS[e.category]||CATS.other;chips+=`<div class="chip" style="background:${c.color}22;color:${c.color}"><span>${c.icon}</span><span>${e.description}</span></div>`});if(de.length>2)chips+=`<div style="font-size:9px;color:#64748b;margin-top:2px">+${de.length-2} more</div>`;const nh=de.length>0?`<span class="chip" style="color:${dn>=0?"#4ade80":"#f87171"};font-size:10px">${dn>=0?"+":""}${dn.toFixed(0)}</span>`:"";html+=`<div class="${cls}" onclick="selectDay('${ds}')"><div class="cell-top"><span class="cell-day${it?" today":""}">${day}</span>${nh}</div>${chips}</div>`});html+="</div>";if(wd){const net=wd.income+wd.expense;html+=`<div class="week-bar"><span style="font-size:10px;color:#475569;font-family:'DM Mono',monospace">WK ${wn}</span>${wd.income>0?`<span class="week-badge" style="background:rgba(34,197,94,.12);color:#4ade80">+$${wd.income.toFixed(2)}</span>`:""}${wd.expense<0?`<span class="week-badge" style="background:rgba(239,68,68,.12);color:#f87171">$${Math.abs(wd.expense).toFixed(2)}</span>`:""}<span class="week-badge" style="background:rgba(139,92,246,.12);color:#c4b5fd;margin-left:auto">Net: ${net>=0?"+":""}$${net.toFixed(2)}</span></div>`}}document.getElementById("calendar").innerHTML=html}
+function selectDay(ds){selDay=selDay===ds?null:ds;document.getElementById("formPanel").innerHTML="";editId=null;renderCalendar();renderDayPanel()}
+function renderDayPanel(){const panel=document.getElementById("dayPanel");if(!selDay){panel.innerHTML="";return}const de=entries.filter(e=>e.date===selDay);const sn=de.reduce((s,e)=>s+e.amount,0);const dl=new Date(selDay+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"});let rows="";de.forEach(e=>{const c=CATS[e.category]||CATS.other;rows+=`<div class="entry-row" style="border:1px solid ${c.color}33"><span style="font-size:18px">${c.icon}</span><div class="entry-info"><div class="entry-desc">${e.description}</div><div class="entry-cat">${c.label}</div></div><div class="entry-amt" style="color:${e.amount>=0?"#4ade80":"#f87171"}">${e.amount>=0?"+":""}$${Math.abs(e.amount).toFixed(2)}</div><button class="btn btn-edit" onclick="openEdit(${e.id})">Edit</button><button class="btn btn-del" onclick="delEntry(${e.id})">&#x2715;</button></div>`});const tot=de.length>0?`<div class="day-total">Day total: <span style="margin-left:8px;font-weight:600;color:${sn>=0?"#4ade80":"#f87171"}">${fa(sn)}</span></div>`:"";panel.innerHTML=`<div class="panel" style="border:1px solid rgba(139,92,246,.3)"><div class="panel-header"><h3>${dl}</h3><button class="btn btn-primary" onclick="openAdd()">+ Add Entry</button></div>${de.length===0?'<p class="empty-msg">No entries. Click + Add Entry to start.</p>':rows+tot}</div>`}
+function openAdd(){editId=null;showForm("","","expense","food")}
+function openEdit(id){const e=entries.find(x=>x.id===id);if(!e)return;editId=id;showForm(e.description,Math.abs(e.amount),e.amount>=0?"income":"expense",e.category)}
+function showForm(desc,amt,type,cat){const opts=Object.entries(CATS).filter(([k])=>k!=="income").map(([k,v])=>`<option value="${k}"${cat===k?" selected":""}>${v.icon} ${v.label}</option>`).join("");const cf=type!=="income"?`<div class="form-group"><label>CATEGORY</label><select id="fCat">${opts}</select></div>`:"";document.getElementById("formPanel").innerHTML=`<div class="panel" style="border:1px solid rgba(139,92,246,.4)"><h3 style="margin-bottom:16px">${editId?"Edit Entry":"New Entry"}</h3><div class="form-grid"><div class="form-group"><label>DESCRIPTION</label><input id="fDesc" value="${desc}" placeholder="e.g. Coffee, Rent..."/></div><div class="form-group"><label>AMOUNT ($)</label><input id="fAmt" type="number" min="0" step="0.01" value="${amt}" placeholder="0.00"/></div><div class="form-group"><label>TYPE</label><select id="fType" onchange="updCat(this.value)"><option value="expense"${type==="expense"?" selected":""}>Expense</option><option value="income"${type==="income"?" selected":""}>Income</option></select></div><div id="catField">${cf}</div></div><div class="form-btns"><button class="btn btn-primary" style="flex:1" onclick="saveEntry()">${editId?"Save Changes":"Add Entry"}</button><button class="btn btn-cancel" onclick="document.getElementById('formPanel').innerHTML=''">Cancel</button></div></div>`}
+function updCat(t){const opts=Object.entries(CATS).filter(([k])=>k!=="income").map(([k,v])=>`<option value="${k}">${v.icon} ${v.label}</option>`).join("");document.getElementById("catField").innerHTML=t!=="income"?`<div class="form-group"><label>CATEGORY</label><select id="fCat">${opts}</select></div>`:""}
+async function saveEntry(){const desc=document.getElementById("fDesc").value.trim();const amt=parseFloat(document.getElementById("fAmt").value);const type=document.getElementById("fType").value;const ce=document.getElementById("fCat");const cat=type==="income"?"income":(ce?ce.value:"other");if(!desc||isNaN(amt))return;const fa2=amt*(type==="expense"?-1:1);setSync("syncing");if(editId){const{data}=await db.from("entries").update({description:desc,amount:fa2,category:cat}).eq("id",editId).select();if(data)entries=entries.map(e=>e.id===editId?{...e,description:desc,amount:fa2,category:cat}:e)}else{const{data}=await db.from("entries").insert({user_id:UID,date:selDay,description:desc,amount:fa2,category:cat}).select();if(data)entries.push({...data[0],amount:parseFloat(data[0].amount)})}setSync("synced");editId=null;document.getElementById("formPanel").innerHTML="";render();renderDayPanel()}
+async function delEntry(id){setSync("syncing");await db.from("entries").delete().eq("id",id);entries=entries.filter(e=>e.id!==id);setSync("synced");render();renderDayPanel()}
+function prevMonth(){if(mo===0){yr--;mo=11}else mo--;selDay=null;document.getElementById("dayPanel").innerHTML="";document.getElementById("formPanel").innerHTML="";render()}
+function nextMonth(){if(mo===11){yr++;mo=0}else mo++;selDay=null;document.getElementById("dayPanel").innerHTML="";document.getElementById("formPanel").innerHTML="";render()}
+function exportToExcel(){const wb=XLSX.utils.book_new();const bm={};entries.forEach(e=>{const k=e.date.slice(0,7);if(!bm[k])bm[k]=[];bm[k].push(e)});if(!Object.keys(bm).length){alert("No entries to export yet!");return}Object.keys(bm).sort().forEach(mk=>{const[y,m]=mk.split("-");const label=new Date(parseInt(y),parseInt(m)-1).toLocaleString("default",{month:"long",year:"numeric"});const data=bm[mk].sort((a,b)=>a.date.localeCompare(b.date));const rows=[["Date","Description","Category","Type","Amount ($)"]];data.forEach(e=>rows.push([e.date,e.description,(CATS[e.category]||CATS.other).label,e.amount>=0?"Income":"Expense",parseFloat(Math.abs(e.amount).toFixed(2))]));const inc=data.filter(e=>e.amount>0).reduce((s,e)=>s+e.amount,0);const exp=data.filter(e=>e.amount<0).reduce((s,e)=>s+e.amount,0);rows.push([],["","","","Total Income",parseFloat(inc.toFixed(2))],["","","","Total Expenses",parseFloat(Math.abs(exp).toFixed(2))],["","","","Net",parseFloat((inc+exp).toFixed(2))]);const ws=XLSX.utils.aoa_to_sheet(rows);ws["!cols"]=[{wch:14},{wch:28},{wch:14},{wch:14},{wch:14}];XLSX.utils.book_append_sheet(wb,ws,label.slice(0,31))});XLSX.writeFile(wb,"Expense_Ledger.xlsx")}
+loadEntries();
+</script>
 </body>
 </html>

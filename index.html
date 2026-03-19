@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -33,353 +34,356 @@
   <script type="text/babel">
     const { useState, useMemo, useEffect } = React;
 
-    const SUPABASE_URL = "https://wqhqcekyzojjxeasshhw.supabase.co";
-    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndxaHFjZWt5em9qanhlYXNzaGh3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4Nzg1MTIsImV4cCI6MjA4OTQ1NDUxMn0.5Ynx_B09N31lUFeoR0Sr8GTHhxuJD8OnpWPyOWJpSlc";
-    const supabase = supabaseJs.createClient(SUPABASE_URL, SUPABASE_KEY);
+```
+const SUPABASE_URL = "https://wqhqcekyzojjxeasshhw.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndxaHFjZWt5em9qanhlYXNzaGh3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4Nzg1MTIsImV4cCI6MjA4OTQ1NDUxMn0.5Ynx_B09N31lUFeoR0Sr8GTHhxuJD8OnpWPyOWJpSlc";
+const supabase = supabaseJs.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    function getUserId() {
-      let uid = localStorage.getItem("expense_uid");
-      if (!uid) { uid = "user_" + Math.random().toString(36).slice(2,11); localStorage.setItem("expense_uid", uid); }
-      return uid;
+function getUserId() {
+  let uid = localStorage.getItem("expense_uid");
+  if (!uid) { uid = "user_" + Math.random().toString(36).slice(2,11); localStorage.setItem("expense_uid", uid); }
+  return uid;
+}
+const USER_ID = getUserId();
+
+const CATEGORIES = {
+  food:      { label: "Food",      color: "#f59e0b", icon: "🍽" },
+  transport: { label: "Transport", color: "#3b82f6", icon: "🚗" },
+  shopping:  { label: "Shopping",  color: "#ec4899", icon: "🛍" },
+  health:    { label: "Health",    color: "#10b981", icon: "💊" },
+  bills:     { label: "Bills",     color: "#8b5cf6", icon: "📄" },
+  income:    { label: "Income",    color: "#22c55e", icon: "💰" },
+  other:     { label: "Other",     color: "#94a3b8", icon: "•"  },
+};
+
+const today = new Date();
+const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+
+function getDaysInMonth(y, m) { return new Date(y, m + 1, 0).getDate(); }
+function getFirstDay(y, m)    { return new Date(y, m, 1).getDay(); }
+function getWeekNum(date) {
+  const d = new Date(date); d.setHours(0,0,0,0);
+  d.setDate(d.getDate() + 4 - (d.getDay() || 7));
+  const ys = new Date(d.getFullYear(), 0, 1);
+  return Math.ceil(((d - ys) / 86400000 + 1) / 7);
+}
+
+function App() {
+  const [year,  setYear]  = useState(today.getFullYear());
+  const [month, setMonth] = useState(today.getMonth());
+  const [entries, setEntries] = useState([]);
+  const [selectedDay, setSelectedDay] = useState(null);
+  const [showForm,    setShowForm]    = useState(false);
+  const [editId,      setEditId]      = useState(null);
+  const [form, setForm] = useState({ description:"", amount:"", type:"expense", category:"food" });
+  const [syncStatus, setSyncStatus] = useState("loading");
+
+  useEffect(() => {
+    async function load() {
+      setSyncStatus("loading");
+      const { data, error } = await supabase
+        .from("entries").select("*").eq("user_id", USER_ID).order("date", { ascending: true });
+      if (error) { setSyncStatus("error"); return; }
+      setEntries(data.map(e => ({ ...e, amount: parseFloat(e.amount) })));
+      setSyncStatus("synced");
     }
-    const USER_ID = getUserId();
+    load();
+  }, []);
 
-    const CATEGORIES = {
-      food:      { label: "Food",      color: "#f59e0b", icon: "🍽" },
-      transport: { label: "Transport", color: "#3b82f6", icon: "🚗" },
-      shopping:  { label: "Shopping",  color: "#ec4899", icon: "🛍" },
-      health:    { label: "Health",    color: "#10b981", icon: "💊" },
-      bills:     { label: "Bills",     color: "#8b5cf6", icon: "📄" },
-      income:    { label: "Income",    color: "#22c55e", icon: "💰" },
-      other:     { label: "Other",     color: "#94a3b8", icon: "•"  },
-    };
+  const monthStr = `${year}-${String(month+1).padStart(2,"0")}`;
+  const byDate = useMemo(() => {
+    const m = {};
+    entries.forEach(e => { (m[e.date] = m[e.date] || []).push(e); });
+    return m;
+  }, [entries]);
 
-    const today = new Date();
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  const monthEntries = useMemo(() => entries.filter(e => e.date.startsWith(monthStr)), [entries, monthStr]);
+  const monthIncome  = useMemo(() => monthEntries.filter(e=>e.amount>0).reduce((s,e)=>s+e.amount,0), [monthEntries]);
+  const monthExpense = useMemo(() => monthEntries.filter(e=>e.amount<0).reduce((s,e)=>s+e.amount,0), [monthEntries]);
+  const monthNet     = useMemo(() => monthEntries.reduce((s,e)=>s+e.amount,0), [monthEntries]);
 
-    function getDaysInMonth(y, m) { return new Date(y, m + 1, 0).getDate(); }
-    function getFirstDay(y, m)    { return new Date(y, m, 1).getDay(); }
-    function getWeekNum(date) {
-      const d = new Date(date); d.setHours(0,0,0,0);
-      d.setDate(d.getDate() + 4 - (d.getDay() || 7));
-      const ys = new Date(d.getFullYear(), 0, 1);
-      return Math.ceil(((d - ys) / 86400000 + 1) / 7);
+  const weeklyTotals = useMemo(() => {
+    const m = {};
+    monthEntries.forEach(e => {
+      const wk = getWeekNum(new Date(e.date+"T12:00:00"));
+      if (!m[wk]) m[wk] = { income:0, expense:0 };
+      e.amount > 0 ? (m[wk].income += e.amount) : (m[wk].expense += e.amount);
+    });
+    return m;
+  }, [monthEntries]);
+
+  const daysInMonth = getDaysInMonth(year, month);
+  const firstDay    = getFirstDay(year, month);
+  const monthName   = new Date(year, month).toLocaleString("default", { month:"long" });
+
+  function prevMonth() { if (month===0){setYear(y=>y-1);setMonth(11);}else setMonth(m=>m-1); setSelectedDay(null);setShowForm(false); }
+  function nextMonth() { if (month===11){setYear(y=>y+1);setMonth(0);}else setMonth(m=>m+1); setSelectedDay(null);setShowForm(false); }
+
+  function openAdd(day) {
+    const ds = `${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+    setSelectedDay(ds); setEditId(null);
+    setForm({ description:"", amount:"", type:"expense", category:"food" });
+    setShowForm(true);
+  }
+  function openEdit(entry) {
+    setSelectedDay(entry.date); setEditId(entry.id);
+    setForm({ description:entry.description, amount:Math.abs(entry.amount).toString(), type:entry.amount>=0?"income":"expense", category:entry.category });
+    setShowForm(true);
+  }
+
+  async function save() {
+    if (!form.description || !form.amount) return;
+    const amt = parseFloat(form.amount) * (form.type==="expense" ? -1 : 1);
+    const cat = form.type==="income" ? "income" : form.category;
+    setSyncStatus("syncing");
+    if (editId) {
+      const { data, error } = await supabase.from("entries").update({ description:form.description, amount:amt, category:cat }).eq("id", editId).select();
+      if (!error && data) setEntries(prev => prev.map(e => e.id===editId ? {...e, description:form.description, amount:amt, category:cat} : e));
+    } else {
+      const { data, error } = await supabase.from("entries").insert({ user_id:USER_ID, date:selectedDay, description:form.description, amount:amt, category:cat }).select();
+      if (!error && data) setEntries(prev => [...prev, { ...data[0], amount: parseFloat(data[0].amount) }]);
     }
+    setSyncStatus("synced"); setShowForm(false);
+  }
 
-    function App() {
-      const [year,  setYear]  = useState(today.getFullYear());
-      const [month, setMonth] = useState(today.getMonth());
-      const [entries, setEntries] = useState([]);
-      const [selectedDay, setSelectedDay] = useState(null);
-      const [showForm,    setShowForm]    = useState(false);
-      const [editId,      setEditId]      = useState(null);
-      const [form, setForm] = useState({ description:"", amount:"", type:"expense", category:"food" });
-      const [syncStatus, setSyncStatus] = useState("loading");
+  async function del(id) {
+    setSyncStatus("syncing");
+    const { error } = await supabase.from("entries").delete().eq("id", id);
+    if (!error) setEntries(prev => prev.filter(e => e.id!==id));
+    setSyncStatus("synced");
+  }
 
-      useEffect(() => {
-        async function load() {
-          setSyncStatus("loading");
-          const { data, error } = await supabase
-            .from("entries").select("*").eq("user_id", USER_ID).order("date", { ascending: true });
-          if (error) { setSyncStatus("error"); return; }
-          setEntries(data.map(e => ({ ...e, amount: parseFloat(e.amount) })));
-          setSyncStatus("synced");
-        }
-        load();
-      }, []);
+  const cells = [];
+  for (let i=0;i<firstDay;i++) cells.push(null);
+  for (let d=1;d<=daysInMonth;d++) cells.push(d);
+  const rows = [];
+  for (let i=0;i<cells.length;i+=7) rows.push(cells.slice(i,i+7));
 
-      const monthStr = `${year}-${String(month+1).padStart(2,"0")}`;
-      const byDate = useMemo(() => {
-        const m = {};
-        entries.forEach(e => { (m[e.date] = m[e.date] || []).push(e); });
-        return m;
-      }, [entries]);
+  const selEntries = selectedDay ? (byDate[selectedDay] || []) : [];
+  const selNet = selEntries.reduce((s,e)=>s+e.amount,0);
+  const fmt = n => `${n>=0?"+":""}$${Math.abs(n).toLocaleString("en-US",{minimumFractionDigits:2})}`;
 
-      const monthEntries = useMemo(() => entries.filter(e => e.date.startsWith(monthStr)), [entries, monthStr]);
-      const monthIncome  = useMemo(() => monthEntries.filter(e=>e.amount>0).reduce((s,e)=>s+e.amount,0), [monthEntries]);
-      const monthExpense = useMemo(() => monthEntries.filter(e=>e.amount<0).reduce((s,e)=>s+e.amount,0), [monthEntries]);
-      const monthNet     = useMemo(() => monthEntries.reduce((s,e)=>s+e.amount,0), [monthEntries]);
+  function exportToExcel() {
+    const wb = XLSX.utils.book_new();
+    const byMonth = {};
+    entries.forEach(e => { const key=e.date.slice(0,7); if(!byMonth[key])byMonth[key]=[]; byMonth[key].push(e); });
+    if (!Object.keys(byMonth).length) { alert("No entries to export yet!"); return; }
+    Object.keys(byMonth).sort().forEach(mk => {
+      const [y,m] = mk.split("-");
+      const label = new Date(parseInt(y),parseInt(m)-1).toLocaleString("default",{month:"long",year:"numeric"});
+      const data = byMonth[mk].sort((a,b)=>a.date.localeCompare(b.date));
+      const rows = [["Date","Description","Category","Type","Amount ($)"]];
+      data.forEach(e => rows.push([e.date, e.description, CATEGORIES[e.category]?.label||e.category, e.amount>=0?"Income":"Expense", parseFloat(Math.abs(e.amount).toFixed(2))]));
+      const inc = data.filter(e=>e.amount>0).reduce((s,e)=>s+e.amount,0);
+      const exp = data.filter(e=>e.amount<0).reduce((s,e)=>s+e.amount,0);
+      rows.push([],["","","","Total Income",parseFloat(inc.toFixed(2))],["","","","Total Expenses",parseFloat(Math.abs(exp).toFixed(2))],["","","","Net",parseFloat((inc+exp).toFixed(2))]);
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      ws["!cols"] = [{wch:14},{wch:28},{wch:14},{wch:14},{wch:14}];
+      XLSX.utils.book_append_sheet(wb, ws, label.slice(0,31));
+    });
+    XLSX.writeFile(wb, "Expense_Ledger.xlsx");
+  }
 
-      const weeklyTotals = useMemo(() => {
-        const m = {};
-        monthEntries.forEach(e => {
-          const wk = getWeekNum(new Date(e.date+"T12:00:00"));
-          if (!m[wk]) m[wk] = { income:0, expense:0 };
-          e.amount > 0 ? (m[wk].income += e.amount) : (m[wk].expense += e.amount);
-        });
-        return m;
-      }, [monthEntries]);
+  const syncColor = syncStatus==="synced"?"#4ade80":syncStatus==="syncing"||syncStatus==="loading"?"#fbbf24":"#f87171";
+  const syncLabel = syncStatus==="synced"?"Synced":syncStatus==="syncing"?"Saving...":syncStatus==="loading"?"Loading...":"Offline";
 
-      const daysInMonth = getDaysInMonth(year, month);
-      const firstDay    = getFirstDay(year, month);
-      const monthName   = new Date(year, month).toLocaleString("default", { month:"long" });
+  return (
+    <div style={{ minHeight:"100vh", color:"#e2e8f0", padding:"24px 16px", fontFamily:"'Georgia','Times New Roman',serif" }}>
+      <div style={{ maxWidth:900, margin:"0 auto" }}>
 
-      function prevMonth() { if (month===0){setYear(y=>y-1);setMonth(11);}else setMonth(m=>m-1); setSelectedDay(null);setShowForm(false); }
-      function nextMonth() { if (month===11){setYear(y=>y+1);setMonth(0);}else setMonth(m=>m+1); setSelectedDay(null);setShowForm(false); }
-
-      function openAdd(day) {
-        const ds = `${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
-        setSelectedDay(ds); setEditId(null);
-        setForm({ description:"", amount:"", type:"expense", category:"food" });
-        setShowForm(true);
-      }
-      function openEdit(entry) {
-        setSelectedDay(entry.date); setEditId(entry.id);
-        setForm({ description:entry.description, amount:Math.abs(entry.amount).toString(), type:entry.amount>=0?"income":"expense", category:entry.category });
-        setShowForm(true);
-      }
-
-      async function save() {
-        if (!form.description || !form.amount) return;
-        const amt = parseFloat(form.amount) * (form.type==="expense" ? -1 : 1);
-        const cat = form.type==="income" ? "income" : form.category;
-        setSyncStatus("syncing");
-        if (editId) {
-          const { data, error } = await supabase.from("entries").update({ description:form.description, amount:amt, category:cat }).eq("id", editId).select();
-          if (!error && data) setEntries(prev => prev.map(e => e.id===editId ? {...e, description:form.description, amount:amt, category:cat} : e));
-        } else {
-          const { data, error } = await supabase.from("entries").insert({ user_id:USER_ID, date:selectedDay, description:form.description, amount:amt, category:cat }).select();
-          if (!error && data) setEntries(prev => [...prev, { ...data[0], amount: parseFloat(data[0].amount) }]);
-        }
-        setSyncStatus("synced"); setShowForm(false);
-      }
-
-      async function del(id) {
-        setSyncStatus("syncing");
-        const { error } = await supabase.from("entries").delete().eq("id", id);
-        if (!error) setEntries(prev => prev.filter(e => e.id!==id));
-        setSyncStatus("synced");
-      }
-
-      const cells = [];
-      for (let i=0;i<firstDay;i++) cells.push(null);
-      for (let d=1;d<=daysInMonth;d++) cells.push(d);
-      const rows = [];
-      for (let i=0;i<cells.length;i+=7) rows.push(cells.slice(i,i+7));
-
-      const selEntries = selectedDay ? (byDate[selectedDay] || []) : [];
-      const selNet = selEntries.reduce((s,e)=>s+e.amount,0);
-      const fmt = n => `${n>=0?"+":""}$${Math.abs(n).toLocaleString("en-US",{minimumFractionDigits:2})}`;
-
-      function exportToExcel() {
-        const wb = XLSX.utils.book_new();
-        const byMonth = {};
-        entries.forEach(e => { const key=e.date.slice(0,7); if(!byMonth[key])byMonth[key]=[]; byMonth[key].push(e); });
-        if (!Object.keys(byMonth).length) { alert("No entries to export yet!"); return; }
-        Object.keys(byMonth).sort().forEach(mk => {
-          const [y,m] = mk.split("-");
-          const label = new Date(parseInt(y),parseInt(m)-1).toLocaleString("default",{month:"long",year:"numeric"});
-          const data = byMonth[mk].sort((a,b)=>a.date.localeCompare(b.date));
-          const rows = [["Date","Description","Category","Type","Amount ($)"]];
-          data.forEach(e => rows.push([e.date, e.description, CATEGORIES[e.category]?.label||e.category, e.amount>=0?"Income":"Expense", parseFloat(Math.abs(e.amount).toFixed(2))]));
-          const inc = data.filter(e=>e.amount>0).reduce((s,e)=>s+e.amount,0);
-          const exp = data.filter(e=>e.amount<0).reduce((s,e)=>s+e.amount,0);
-          rows.push([],["","","","Total Income",parseFloat(inc.toFixed(2))],["","","","Total Expenses",parseFloat(Math.abs(exp).toFixed(2))],["","","","Net",parseFloat((inc+exp).toFixed(2))]);
-          const ws = XLSX.utils.aoa_to_sheet(rows);
-          ws["!cols"] = [{wch:14},{wch:28},{wch:14},{wch:14},{wch:14}];
-          XLSX.utils.book_append_sheet(wb, ws, label.slice(0,31));
-        });
-        XLSX.writeFile(wb, "Expense_Ledger.xlsx");
-      }
-
-      const syncColor = syncStatus==="synced"?"#4ade80":syncStatus==="syncing"||syncStatus==="loading"?"#fbbf24":"#f87171";
-      const syncLabel = syncStatus==="synced"?"Synced":syncStatus==="syncing"?"Saving...":syncStatus==="loading"?"Loading...":"Offline";
-
-      return (
-        <div style={{ minHeight:"100vh", color:"#e2e8f0", padding:"24px 16px", fontFamily:"'Georgia','Times New Roman',serif" }}>
-          <div style={{ maxWidth:900, margin:"0 auto" }}>
-
-            <div style={{ textAlign:"center", marginBottom:28 }}>
-              <h1 style={{ fontFamily:"'Playfair Display',serif", fontSize:36, fontWeight:900,
-                background:"linear-gradient(90deg,#c4b5fd,#818cf8,#a5f3fc)",
-                WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>Expense Ledger</h1>
-              <p style={{ color:"#94a3b8", marginTop:4, fontSize:13, fontFamily:"'DM Mono',monospace" }}>Track · Reflect · Balance</p>
-              <div style={{ display:"flex", justifyContent:"center", gap:10, marginTop:14, flexWrap:"wrap" }}>
-                <button className="btn" onClick={exportToExcel}
-                  style={{ background:"linear-gradient(135deg,#065f46,#047857)", color:"#d1fae5", padding:"9px 22px", fontSize:13, fontFamily:"'DM Mono',monospace" }}>
-                  ⬇ Export to Excel
-                </button>
-                <div style={{ display:"flex", alignItems:"center", padding:"9px 16px", background:"rgba(255,255,255,0.05)", borderRadius:8, fontSize:12, fontFamily:"'DM Mono',monospace", color:"#94a3b8" }}>
-                  <span className={`sync-dot${syncStatus==="syncing"||syncStatus==="loading"?" syncing":""}`} style={{ background:syncColor }}></span>
-                  {syncLabel}
-                </div>
-              </div>
+        <div style={{ textAlign:"center", marginBottom:28 }}>
+          <h1 style={{ fontFamily:"'Playfair Display',serif", fontSize:36, fontWeight:900,
+            background:"linear-gradient(90deg,#c4b5fd,#818cf8,#a5f3fc)",
+            WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>Expense Ledger</h1>
+          <p style={{ color:"#94a3b8", marginTop:4, fontSize:13, fontFamily:"'DM Mono',monospace" }}>Track · Reflect · Balance</p>
+          <div style={{ display:"flex", justifyContent:"center", gap:10, marginTop:14, flexWrap:"wrap" }}>
+            <button className="btn" onClick={exportToExcel}
+              style={{ background:"linear-gradient(135deg,#065f46,#047857)", color:"#d1fae5", padding:"9px 22px", fontSize:13, fontFamily:"'DM Mono',monospace" }}>
+              ⬇ Export to Excel
+            </button>
+            <div style={{ display:"flex", alignItems:"center", padding:"9px 16px", background:"rgba(255,255,255,0.05)", borderRadius:8, fontSize:12, fontFamily:"'DM Mono',monospace", color:"#94a3b8" }}>
+              <span className={`sync-dot${syncStatus==="syncing"||syncStatus==="loading"?" syncing":""}`} style={{ background:syncColor }}></span>
+              {syncLabel}
             </div>
-
-            {syncStatus==="loading" && (
-              <div style={{ textAlign:"center", padding:"40px 0", color:"#64748b", fontFamily:"'DM Mono',monospace", fontSize:13 }}>
-                Loading your entries from the cloud...
-              </div>
-            )}
-
-            {syncStatus!=="loading" && <>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12, marginBottom:24 }}>
-                <div className="summary-card" style={{ borderColor:"rgba(34,197,94,0.3)" }}>
-                  <div style={{ fontSize:11, color:"#86efac", fontFamily:"'DM Mono',monospace", marginBottom:4 }}>INCOME</div>
-                  <div style={{ fontSize:22, fontFamily:"'Playfair Display',serif", fontWeight:700, color:"#4ade80" }}>+${monthIncome.toLocaleString("en-US",{minimumFractionDigits:2})}</div>
-                </div>
-                <div className="summary-card" style={{ borderColor:"rgba(239,68,68,0.3)" }}>
-                  <div style={{ fontSize:11, color:"#fca5a5", fontFamily:"'DM Mono',monospace", marginBottom:4 }}>EXPENSES</div>
-                  <div style={{ fontSize:22, fontFamily:"'Playfair Display',serif", fontWeight:700, color:"#f87171" }}>${Math.abs(monthExpense).toLocaleString("en-US",{minimumFractionDigits:2})}</div>
-                </div>
-                <div className="summary-card" style={{ borderColor:monthNet>=0?"rgba(99,102,241,0.4)":"rgba(239,68,68,0.3)" }}>
-                  <div style={{ fontSize:11, color:"#c4b5fd", fontFamily:"'DM Mono',monospace", marginBottom:4 }}>NET</div>
-                  <div style={{ fontSize:22, fontFamily:"'Playfair Display',serif", fontWeight:700, color:monthNet>=0?"#a5b4fc":"#f87171" }}>{fmt(monthNet)}</div>
-                </div>
-              </div>
-
-              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
-                <button className="btn" onClick={prevMonth} style={{ background:"rgba(99,102,241,0.2)", color:"#c4b5fd", padding:"8px 18px", fontSize:18 }}>‹</button>
-                <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:26, fontWeight:700 }}>{monthName} {year}</h2>
-                <button className="btn" onClick={nextMonth} style={{ background:"rgba(99,102,241,0.2)", color:"#c4b5fd", padding:"8px 18px", fontSize:18 }}>›</button>
-              </div>
-
-              <div style={{ background:"rgba(255,255,255,0.03)", borderRadius:16, border:"1px solid rgba(255,255,255,0.07)", overflow:"hidden", marginBottom:24 }}>
-                <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
-                  {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d=>(
-                    <div key={d} style={{ padding:"10px 0", textAlign:"center", fontSize:11, color:"#64748b", fontFamily:"'DM Mono',monospace", letterSpacing:1 }}>{d}</div>
-                  ))}
-                </div>
-                {rows.map((row,ri) => {
-                  const firstReal = row.find(d=>d!==null);
-                  let wkNum=null, wkData=null;
-                  if (firstReal) {
-                    wkNum = getWeekNum(new Date(`${year}-${String(month+1).padStart(2,'0')}-${String(firstReal).padStart(2,'0')}T12:00:00`));
-                    wkData = weeklyTotals[wkNum];
-                  }
-                  return (
-                    <div key={ri}>
-                      <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", borderBottom:ri<rows.length-1?"1px solid rgba(255,255,255,0.04)":"none" }}>
-                        {row.map((day,ci) => {
-                          if (!day) return <div key={ci} style={{ minHeight:80, background:"rgba(0,0,0,0.15)" }}/>;
-                          const ds = `${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
-                          const de = byDate[ds] || [];
-                          const isToday = ds===todayStr, isSel = selectedDay===ds;
-                          const dayNet = de.reduce((s,e)=>s+e.amount,0);
-                          return (
-                            <div key={ci} className={`cal-cell${isToday?" today":""}`}
-                              onClick={()=>{ setSelectedDay(isSel?null:ds); setShowForm(false); }}
-                              style={{ minHeight:80, padding:"6px 7px", borderLeft:ci>0?"1px solid rgba(255,255,255,0.04)":"none",
-                                background:isSel?"rgba(139,92,246,0.2)":"transparent", transition:"background 0.15s" }}>
-                              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
-                                <span style={{ fontSize:13, fontWeight:isToday?700:400, color:isToday?"#a78bfa":"#cbd5e1", fontFamily:"'DM Mono',monospace" }}>{day}</span>
-                                {de.length>0 && <span style={{ fontSize:10, color:dayNet>=0?"#4ade80":"#f87171", fontFamily:"'DM Mono',monospace" }}>{dayNet>=0?"+":""}{dayNet.toFixed(0)}</span>}
-                              </div>
-                              {de.slice(0,2).map(e=>(
-                                <div key={e.id} className="entry-chip" style={{ background:CATEGORIES[e.category]?.color+"22", color:CATEGORIES[e.category]?.color }}>
-                                  <span>{CATEGORIES[e.category]?.icon}</span>
-                                  <span style={{ overflow:"hidden", textOverflow:"ellipsis" }}>{e.description}</span>
-                                </div>
-                              ))}
-                              {de.length>2 && <div style={{ fontSize:9, color:"#64748b", marginTop:2 }}>+{de.length-2} more</div>}
-                            </div>
-                          );
-                        })}
-                      </div>
-                      {wkData && (
-                        <div style={{ padding:"5px 12px", background:"rgba(0,0,0,0.2)", borderBottom:ri<rows.length-1?"1px solid rgba(255,255,255,0.04)":"none", display:"flex", gap:10, alignItems:"center" }}>
-                          <span style={{ fontSize:10, color:"#475569", fontFamily:"'DM Mono',monospace" }}>WK {wkNum}</span>
-                          {wkData.income>0  && <span className="week-badge" style={{ background:"rgba(34,197,94,0.12)", color:"#4ade80" }}>+${wkData.income.toFixed(2)}</span>}
-                          {wkData.expense<0 && <span className="week-badge" style={{ background:"rgba(239,68,68,0.12)", color:"#f87171" }}>${Math.abs(wkData.expense).toFixed(2)}</span>}
-                          <span className="week-badge" style={{ background:"rgba(139,92,246,0.12)", color:"#c4b5fd", marginLeft:"auto" }}>
-                            Net: {(wkData.income+wkData.expense)>=0?"+":""}${(wkData.income+wkData.expense).toFixed(2)}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              {selectedDay && (
-                <div style={{ background:"rgba(255,255,255,0.04)", borderRadius:16, border:"1px solid rgba(139,92,246,0.3)", padding:"20px 24px", marginBottom:20 }}>
-                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
-                    <h3 style={{ fontFamily:"'Playfair Display',serif", fontSize:18 }}>
-                      {new Date(selectedDay+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}
-                    </h3>
-                    <button className="btn" onClick={()=>openAdd(parseInt(selectedDay.split("-")[2]))}
-                      style={{ background:"linear-gradient(135deg,#7c3aed,#4f46e5)", color:"#fff", padding:"7px 16px", fontSize:13 }}>
-                      + Add Entry
-                    </button>
-                  </div>
-                  {selEntries.length===0
-                    ? <p style={{ color:"#475569", fontSize:13, textAlign:"center", padding:"20px 0" }}>No entries for this day. Click + Add Entry to start.</p>
-                    : (
-                      <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                        {selEntries.map(e=>(
-                          <div key={e.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 14px", background:"rgba(0,0,0,0.2)", borderRadius:10, border:`1px solid ${CATEGORIES[e.category]?.color}33` }}>
-                            <span style={{ fontSize:18 }}>{CATEGORIES[e.category]?.icon}</span>
-                            <div style={{ flex:1 }}>
-                              <div style={{ fontSize:14, fontWeight:500 }}>{e.description}</div>
-                              <div style={{ fontSize:11, color:"#64748b", fontFamily:"'DM Mono',monospace" }}>{CATEGORIES[e.category]?.label}</div>
-                            </div>
-                            <div style={{ fontFamily:"'DM Mono',monospace", fontSize:15, fontWeight:600, color:e.amount>=0?"#4ade80":"#f87171" }}>
-                              {e.amount>=0?"+":""}${Math.abs(e.amount).toFixed(2)}
-                            </div>
-                            <button className="btn" onClick={()=>openEdit(e)} style={{ background:"rgba(99,102,241,0.2)", color:"#a5b4fc", padding:"4px 10px", fontSize:12 }}>Edit</button>
-                            <button className="btn" onClick={()=>del(e.id)}   style={{ background:"rgba(239,68,68,0.15)", color:"#f87171", padding:"4px 10px", fontSize:12 }}>✕</button>
-                          </div>
-                        ))}
-                        <div style={{ display:"flex", justifyContent:"flex-end", marginTop:6, fontFamily:"'DM Mono',monospace", fontSize:13, color:"#94a3b8" }}>
-                          Day total: <span style={{ marginLeft:8, fontWeight:600, color:selNet>=0?"#4ade80":"#f87171" }}>{fmt(selNet)}</span>
-                        </div>
-                      </div>
-                    )
-                  }
-                </div>
-              )}
-
-              {showForm && (
-                <div style={{ background:"rgba(255,255,255,0.04)", borderRadius:16, border:"1px solid rgba(139,92,246,0.4)", padding:"20px 24px" }}>
-                  <h3 style={{ fontFamily:"'Playfair Display',serif", fontSize:18, marginBottom:16 }}>{editId?"Edit Entry":"New Entry"}</h3>
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
-                    <div>
-                      <label style={{ fontSize:11, color:"#94a3b8", fontFamily:"'DM Mono',monospace", display:"block", marginBottom:5 }}>DESCRIPTION</label>
-                      <input value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="e.g. Coffee, Rent..."/>
-                    </div>
-                    <div>
-                      <label style={{ fontSize:11, color:"#94a3b8", fontFamily:"'DM Mono',monospace", display:"block", marginBottom:5 }}>AMOUNT ($)</label>
-                      <input type="number" min="0" step="0.01" value={form.amount} onChange={e=>setForm(f=>({...f,amount:e.target.value}))} placeholder="0.00"/>
-                    </div>
-                    <div>
-                      <label style={{ fontSize:11, color:"#94a3b8", fontFamily:"'DM Mono',monospace", display:"block", marginBottom:5 }}>TYPE</label>
-                      <select value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value,category:e.target.value==="income"?"income":f.category}))}>
-                        <option value="expense">Expense</option>
-                        <option value="income">Income</option>
-                      </select>
-                    </div>
-                    {form.type==="expense" && (
-                      <div>
-                        <label style={{ fontSize:11, color:"#94a3b8", fontFamily:"'DM Mono',monospace", display:"block", marginBottom:5 }}>CATEGORY</label>
-                        <select value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))}>
-                          {Object.entries(CATEGORIES).filter(([k])=>k!=="income").map(([k,v])=>(
-                            <option key={k} value={k}>{v.icon} {v.label}</option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-                  </div>
-                  <div style={{ display:"flex", gap:10 }}>
-                    <button className="btn" onClick={save} style={{ background:"linear-gradient(135deg,#7c3aed,#4f46e5)", color:"#fff", padding:"10px 24px", fontSize:14, flex:1 }}>
-                      {editId?"Save Changes":"Add Entry"}
-                    </button>
-                    <button className="btn" onClick={()=>setShowForm(false)} style={{ background:"rgba(255,255,255,0.06)", color:"#94a3b8", padding:"10px 20px", fontSize:14 }}>
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              <p style={{ textAlign:"center", color:"#334155", fontSize:11, marginTop:24, fontFamily:"'DM Mono',monospace" }}>
-                Click any day to view or add entries · Data syncs across all your devices ☁
-              </p>
-            </>}
           </div>
         </div>
-      );
-    }
 
-    ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+        {syncStatus==="loading" && (
+          <div style={{ textAlign:"center", padding:"40px 0", color:"#64748b", fontFamily:"'DM Mono',monospace", fontSize:13 }}>
+            Loading your entries from the cloud...
+          </div>
+        )}
+
+        {syncStatus!=="loading" && <>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12, marginBottom:24 }}>
+            <div className="summary-card" style={{ borderColor:"rgba(34,197,94,0.3)" }}>
+              <div style={{ fontSize:11, color:"#86efac", fontFamily:"'DM Mono',monospace", marginBottom:4 }}>INCOME</div>
+              <div style={{ fontSize:22, fontFamily:"'Playfair Display',serif", fontWeight:700, color:"#4ade80" }}>+${monthIncome.toLocaleString("en-US",{minimumFractionDigits:2})}</div>
+            </div>
+            <div className="summary-card" style={{ borderColor:"rgba(239,68,68,0.3)" }}>
+              <div style={{ fontSize:11, color:"#fca5a5", fontFamily:"'DM Mono',monospace", marginBottom:4 }}>EXPENSES</div>
+              <div style={{ fontSize:22, fontFamily:"'Playfair Display',serif", fontWeight:700, color:"#f87171" }}>${Math.abs(monthExpense).toLocaleString("en-US",{minimumFractionDigits:2})}</div>
+            </div>
+            <div className="summary-card" style={{ borderColor:monthNet>=0?"rgba(99,102,241,0.4)":"rgba(239,68,68,0.3)" }}>
+              <div style={{ fontSize:11, color:"#c4b5fd", fontFamily:"'DM Mono',monospace", marginBottom:4 }}>NET</div>
+              <div style={{ fontSize:22, fontFamily:"'Playfair Display',serif", fontWeight:700, color:monthNet>=0?"#a5b4fc":"#f87171" }}>{fmt(monthNet)}</div>
+            </div>
+          </div>
+
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
+            <button className="btn" onClick={prevMonth} style={{ background:"rgba(99,102,241,0.2)", color:"#c4b5fd", padding:"8px 18px", fontSize:18 }}>‹</button>
+            <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:26, fontWeight:700 }}>{monthName} {year}</h2>
+            <button className="btn" onClick={nextMonth} style={{ background:"rgba(99,102,241,0.2)", color:"#c4b5fd", padding:"8px 18px", fontSize:18 }}>›</button>
+          </div>
+
+          <div style={{ background:"rgba(255,255,255,0.03)", borderRadius:16, border:"1px solid rgba(255,255,255,0.07)", overflow:"hidden", marginBottom:24 }}>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
+              {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d=>(
+                <div key={d} style={{ padding:"10px 0", textAlign:"center", fontSize:11, color:"#64748b", fontFamily:"'DM Mono',monospace", letterSpacing:1 }}>{d}</div>
+              ))}
+            </div>
+            {rows.map((row,ri) => {
+              const firstReal = row.find(d=>d!==null);
+              let wkNum=null, wkData=null;
+              if (firstReal) {
+                wkNum = getWeekNum(new Date(`${year}-${String(month+1).padStart(2,'0')}-${String(firstReal).padStart(2,'0')}T12:00:00`));
+                wkData = weeklyTotals[wkNum];
+              }
+              return (
+                <div key={ri}>
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", borderBottom:ri<rows.length-1?"1px solid rgba(255,255,255,0.04)":"none" }}>
+                    {row.map((day,ci) => {
+                      if (!day) return <div key={ci} style={{ minHeight:80, background:"rgba(0,0,0,0.15)" }}/>;
+                      const ds = `${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+                      const de = byDate[ds] || [];
+                      const isToday = ds===todayStr, isSel = selectedDay===ds;
+                      const dayNet = de.reduce((s,e)=>s+e.amount,0);
+                      return (
+                        <div key={ci} className={`cal-cell${isToday?" today":""}`}
+                          onClick={()=>{ setSelectedDay(isSel?null:ds); setShowForm(false); }}
+                          style={{ minHeight:80, padding:"6px 7px", borderLeft:ci>0?"1px solid rgba(255,255,255,0.04)":"none",
+                            background:isSel?"rgba(139,92,246,0.2)":"transparent", transition:"background 0.15s" }}>
+                          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+                            <span style={{ fontSize:13, fontWeight:isToday?700:400, color:isToday?"#a78bfa":"#cbd5e1", fontFamily:"'DM Mono',monospace" }}>{day}</span>
+                            {de.length>0 && <span style={{ fontSize:10, color:dayNet>=0?"#4ade80":"#f87171", fontFamily:"'DM Mono',monospace" }}>{dayNet>=0?"+":""}{dayNet.toFixed(0)}</span>}
+                          </div>
+                          {de.slice(0,2).map(e=>(
+                            <div key={e.id} className="entry-chip" style={{ background:CATEGORIES[e.category]?.color+"22", color:CATEGORIES[e.category]?.color }}>
+                              <span>{CATEGORIES[e.category]?.icon}</span>
+                              <span style={{ overflow:"hidden", textOverflow:"ellipsis" }}>{e.description}</span>
+                            </div>
+                          ))}
+                          {de.length>2 && <div style={{ fontSize:9, color:"#64748b", marginTop:2 }}>+{de.length-2} more</div>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {wkData && (
+                    <div style={{ padding:"5px 12px", background:"rgba(0,0,0,0.2)", borderBottom:ri<rows.length-1?"1px solid rgba(255,255,255,0.04)":"none", display:"flex", gap:10, alignItems:"center" }}>
+                      <span style={{ fontSize:10, color:"#475569", fontFamily:"'DM Mono',monospace" }}>WK {wkNum}</span>
+                      {wkData.income>0  && <span className="week-badge" style={{ background:"rgba(34,197,94,0.12)", color:"#4ade80" }}>+${wkData.income.toFixed(2)}</span>}
+                      {wkData.expense<0 && <span className="week-badge" style={{ background:"rgba(239,68,68,0.12)", color:"#f87171" }}>${Math.abs(wkData.expense).toFixed(2)}</span>}
+                      <span className="week-badge" style={{ background:"rgba(139,92,246,0.12)", color:"#c4b5fd", marginLeft:"auto" }}>
+                        Net: {(wkData.income+wkData.expense)>=0?"+":""}${(wkData.income+wkData.expense).toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {selectedDay && (
+            <div style={{ background:"rgba(255,255,255,0.04)", borderRadius:16, border:"1px solid rgba(139,92,246,0.3)", padding:"20px 24px", marginBottom:20 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+                <h3 style={{ fontFamily:"'Playfair Display',serif", fontSize:18 }}>
+                  {new Date(selectedDay+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}
+                </h3>
+                <button className="btn" onClick={()=>openAdd(parseInt(selectedDay.split("-")[2]))}
+                  style={{ background:"linear-gradient(135deg,#7c3aed,#4f46e5)", color:"#fff", padding:"7px 16px", fontSize:13 }}>
+                  + Add Entry
+                </button>
+              </div>
+              {selEntries.length===0
+                ? <p style={{ color:"#475569", fontSize:13, textAlign:"center", padding:"20px 0" }}>No entries for this day. Click + Add Entry to start.</p>
+                : (
+                  <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                    {selEntries.map(e=>(
+                      <div key={e.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 14px", background:"rgba(0,0,0,0.2)", borderRadius:10, border:`1px solid ${CATEGORIES[e.category]?.color}33` }}>
+                        <span style={{ fontSize:18 }}>{CATEGORIES[e.category]?.icon}</span>
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontSize:14, fontWeight:500 }}>{e.description}</div>
+                          <div style={{ fontSize:11, color:"#64748b", fontFamily:"'DM Mono',monospace" }}>{CATEGORIES[e.category]?.label}</div>
+                        </div>
+                        <div style={{ fontFamily:"'DM Mono',monospace", fontSize:15, fontWeight:600, color:e.amount>=0?"#4ade80":"#f87171" }}>
+                          {e.amount>=0?"+":""}${Math.abs(e.amount).toFixed(2)}
+                        </div>
+                        <button className="btn" onClick={()=>openEdit(e)} style={{ background:"rgba(99,102,241,0.2)", color:"#a5b4fc", padding:"4px 10px", fontSize:12 }}>Edit</button>
+                        <button className="btn" onClick={()=>del(e.id)}   style={{ background:"rgba(239,68,68,0.15)", color:"#f87171", padding:"4px 10px", fontSize:12 }}>✕</button>
+                      </div>
+                    ))}
+                    <div style={{ display:"flex", justifyContent:"flex-end", marginTop:6, fontFamily:"'DM Mono',monospace", fontSize:13, color:"#94a3b8" }}>
+                      Day total: <span style={{ marginLeft:8, fontWeight:600, color:selNet>=0?"#4ade80":"#f87171" }}>{fmt(selNet)}</span>
+                    </div>
+                  </div>
+                )
+              }
+            </div>
+          )}
+
+          {showForm && (
+            <div style={{ background:"rgba(255,255,255,0.04)", borderRadius:16, border:"1px solid rgba(139,92,246,0.4)", padding:"20px 24px" }}>
+              <h3 style={{ fontFamily:"'Playfair Display',serif", fontSize:18, marginBottom:16 }}>{editId?"Edit Entry":"New Entry"}</h3>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
+                <div>
+                  <label style={{ fontSize:11, color:"#94a3b8", fontFamily:"'DM Mono',monospace", display:"block", marginBottom:5 }}>DESCRIPTION</label>
+                  <input value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="e.g. Coffee, Rent..."/>
+                </div>
+                <div>
+                  <label style={{ fontSize:11, color:"#94a3b8", fontFamily:"'DM Mono',monospace", display:"block", marginBottom:5 }}>AMOUNT ($)</label>
+                  <input type="number" min="0" step="0.01" value={form.amount} onChange={e=>setForm(f=>({...f,amount:e.target.value}))} placeholder="0.00"/>
+                </div>
+                <div>
+                  <label style={{ fontSize:11, color:"#94a3b8", fontFamily:"'DM Mono',monospace", display:"block", marginBottom:5 }}>TYPE</label>
+                  <select value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value,category:e.target.value==="income"?"income":f.category}))}>
+                    <option value="expense">Expense</option>
+                    <option value="income">Income</option>
+                  </select>
+                </div>
+                {form.type==="expense" && (
+                  <div>
+                    <label style={{ fontSize:11, color:"#94a3b8", fontFamily:"'DM Mono',monospace", display:"block", marginBottom:5 }}>CATEGORY</label>
+                    <select value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))}>
+                      {Object.entries(CATEGORIES).filter(([k])=>k!=="income").map(([k,v])=>(
+                        <option key={k} value={k}>{v.icon} {v.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+              <div style={{ display:"flex", gap:10 }}>
+                <button className="btn" onClick={save} style={{ background:"linear-gradient(135deg,#7c3aed,#4f46e5)", color:"#fff", padding:"10px 24px", fontSize:14, flex:1 }}>
+                  {editId?"Save Changes":"Add Entry"}
+                </button>
+                <button className="btn" onClick={()=>setShowForm(false)} style={{ background:"rgba(255,255,255,0.06)", color:"#94a3b8", padding:"10px 20px", fontSize:14 }}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          <p style={{ textAlign:"center", color:"#334155", fontSize:11, marginTop:24, fontFamily:"'DM Mono',monospace" }}>
+            Click any day to view or add entries · Data syncs across all your devices ☁
+          </p>
+        </>}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+```
+
   </script>
 </body>
 </html>

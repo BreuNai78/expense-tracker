@@ -6,11 +6,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Expense Ledger</title>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: linear-gradient(135deg, #0f0c29, #1a1a3e, #24243e); min-height: 100vh; }
@@ -37,7 +37,7 @@
 ```
 const SUPABASE_URL = "https://wqhqcekyzojjxeasshhw.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndxaHFjZWt5em9qanhlYXNzaGh3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4Nzg1MTIsImV4cCI6MjA4OTQ1NDUxMn0.5Ynx_B09N31lUFeoR0Sr8GTHhxuJD8OnpWPyOWJpSlc";
-const supabase = supabaseJs.createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 function getUserId() {
   let uid = localStorage.getItem("expense_uid");
@@ -80,12 +80,17 @@ function App() {
 
   useEffect(() => {
     async function load() {
-      setSyncStatus("loading");
-      const { data, error } = await supabase
-        .from("entries").select("*").eq("user_id", USER_ID).order("date", { ascending: true });
-      if (error) { setSyncStatus("error"); return; }
-      setEntries(data.map(e => ({ ...e, amount: parseFloat(e.amount) })));
-      setSyncStatus("synced");
+      try {
+        setSyncStatus("loading");
+        const { data, error } = await supabase
+          .from("entries").select("*").eq("user_id", USER_ID).order("date", { ascending: true });
+        if (error) throw error;
+        setEntries((data || []).map(e => ({ ...e, amount: parseFloat(e.amount) })));
+        setSyncStatus("synced");
+      } catch(e) {
+        console.error(e);
+        setSyncStatus("error");
+      }
     }
     load();
   }, []);
@@ -116,8 +121,8 @@ function App() {
   const firstDay    = getFirstDay(year, month);
   const monthName   = new Date(year, month).toLocaleString("default", { month:"long" });
 
-  function prevMonth() { if (month===0){setYear(y=>y-1);setMonth(11);}else setMonth(m=>m-1); setSelectedDay(null);setShowForm(false); }
-  function nextMonth() { if (month===11){setYear(y=>y+1);setMonth(0);}else setMonth(m=>m+1); setSelectedDay(null);setShowForm(false); }
+  function prevMonth() { if(month===0){setYear(y=>y-1);setMonth(11);}else setMonth(m=>m-1); setSelectedDay(null);setShowForm(false); }
+  function nextMonth() { if(month===11){setYear(y=>y+1);setMonth(0);}else setMonth(m=>m+1); setSelectedDay(null);setShowForm(false); }
 
   function openAdd(day) {
     const ds = `${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
@@ -136,20 +141,24 @@ function App() {
     const amt = parseFloat(form.amount) * (form.type==="expense" ? -1 : 1);
     const cat = form.type==="income" ? "income" : form.category;
     setSyncStatus("syncing");
-    if (editId) {
-      const { data, error } = await supabase.from("entries").update({ description:form.description, amount:amt, category:cat }).eq("id", editId).select();
-      if (!error && data) setEntries(prev => prev.map(e => e.id===editId ? {...e, description:form.description, amount:amt, category:cat} : e));
-    } else {
-      const { data, error } = await supabase.from("entries").insert({ user_id:USER_ID, date:selectedDay, description:form.description, amount:amt, category:cat }).select();
-      if (!error && data) setEntries(prev => [...prev, { ...data[0], amount: parseFloat(data[0].amount) }]);
-    }
+    try {
+      if (editId) {
+        const { data } = await supabase.from("entries").update({ description:form.description, amount:amt, category:cat }).eq("id", editId).select();
+        if (data) setEntries(prev => prev.map(e => e.id===editId ? {...e, description:form.description, amount:amt, category:cat} : e));
+      } else {
+        const { data } = await supabase.from("entries").insert({ user_id:USER_ID, date:selectedDay, description:form.description, amount:amt, category:cat }).select();
+        if (data) setEntries(prev => [...prev, { ...data[0], amount: parseFloat(data[0].amount) }]);
+      }
+    } catch(e) { console.error(e); }
     setSyncStatus("synced"); setShowForm(false);
   }
 
   async function del(id) {
     setSyncStatus("syncing");
-    const { error } = await supabase.from("entries").delete().eq("id", id);
-    if (!error) setEntries(prev => prev.filter(e => e.id!==id));
+    try {
+      await supabase.from("entries").delete().eq("id", id);
+      setEntries(prev => prev.filter(e => e.id!==id));
+    } catch(e) { console.error(e); }
     setSyncStatus("synced");
   }
 
@@ -172,20 +181,20 @@ function App() {
       const [y,m] = mk.split("-");
       const label = new Date(parseInt(y),parseInt(m)-1).toLocaleString("default",{month:"long",year:"numeric"});
       const data = byMonth[mk].sort((a,b)=>a.date.localeCompare(b.date));
-      const rows = [["Date","Description","Category","Type","Amount ($)"]];
-      data.forEach(e => rows.push([e.date, e.description, CATEGORIES[e.category]?.label||e.category, e.amount>=0?"Income":"Expense", parseFloat(Math.abs(e.amount).toFixed(2))]));
+      const rs = [["Date","Description","Category","Type","Amount ($)"]];
+      data.forEach(e => rs.push([e.date, e.description, CATEGORIES[e.category]?.label||e.category, e.amount>=0?"Income":"Expense", parseFloat(Math.abs(e.amount).toFixed(2))]));
       const inc = data.filter(e=>e.amount>0).reduce((s,e)=>s+e.amount,0);
       const exp = data.filter(e=>e.amount<0).reduce((s,e)=>s+e.amount,0);
-      rows.push([],["","","","Total Income",parseFloat(inc.toFixed(2))],["","","","Total Expenses",parseFloat(Math.abs(exp).toFixed(2))],["","","","Net",parseFloat((inc+exp).toFixed(2))]);
-      const ws = XLSX.utils.aoa_to_sheet(rows);
+      rs.push([],["","","","Total Income",parseFloat(inc.toFixed(2))],["","","","Total Expenses",parseFloat(Math.abs(exp).toFixed(2))],["","","","Net",parseFloat((inc+exp).toFixed(2))]);
+      const ws = XLSX.utils.aoa_to_sheet(rs);
       ws["!cols"] = [{wch:14},{wch:28},{wch:14},{wch:14},{wch:14}];
       XLSX.utils.book_append_sheet(wb, ws, label.slice(0,31));
     });
     XLSX.writeFile(wb, "Expense_Ledger.xlsx");
   }
 
-  const syncColor = syncStatus==="synced"?"#4ade80":syncStatus==="syncing"||syncStatus==="loading"?"#fbbf24":"#f87171";
-  const syncLabel = syncStatus==="synced"?"Synced":syncStatus==="syncing"?"Saving...":syncStatus==="loading"?"Loading...":"Offline";
+  const syncColor = syncStatus==="synced"?"#4ade80":syncStatus==="error"?"#f87171":"#fbbf24";
+  const syncLabel = syncStatus==="synced"?"☁ Synced":syncStatus==="syncing"?"Saving...":syncStatus==="loading"?"Loading...":"⚠ Offline";
 
   return (
     <div style={{ minHeight:"100vh", color:"#e2e8f0", padding:"24px 16px", fontFamily:"'Georgia','Times New Roman',serif" }}>
@@ -201,7 +210,7 @@ function App() {
               style={{ background:"linear-gradient(135deg,#065f46,#047857)", color:"#d1fae5", padding:"9px 22px", fontSize:13, fontFamily:"'DM Mono',monospace" }}>
               ⬇ Export to Excel
             </button>
-            <div style={{ display:"flex", alignItems:"center", padding:"9px 16px", background:"rgba(255,255,255,0.05)", borderRadius:8, fontSize:12, fontFamily:"'DM Mono',monospace", color:"#94a3b8" }}>
+            <div style={{ display:"flex", alignItems:"center", padding:"9px 16px", background:"rgba(255,255,255,0.05)", borderRadius:8, fontSize:12, fontFamily:"'DM Mono',monospace", color:syncColor }}>
               <span className={`sync-dot${syncStatus==="syncing"||syncStatus==="loading"?" syncing":""}`} style={{ background:syncColor }}></span>
               {syncLabel}
             </div>
@@ -209,12 +218,18 @@ function App() {
         </div>
 
         {syncStatus==="loading" && (
-          <div style={{ textAlign:"center", padding:"40px 0", color:"#64748b", fontFamily:"'DM Mono',monospace", fontSize:13 }}>
+          <div style={{ textAlign:"center", padding:"60px 0", color:"#64748b", fontFamily:"'DM Mono',monospace", fontSize:13 }}>
             Loading your entries from the cloud...
           </div>
         )}
 
-        {syncStatus!=="loading" && <>
+        {syncStatus==="error" && (
+          <div style={{ textAlign:"center", padding:"40px 20px", color:"#f87171", fontFamily:"'DM Mono',monospace", fontSize:13, background:"rgba(239,68,68,0.08)", borderRadius:12, marginBottom:20 }}>
+            ⚠ Could not connect to cloud. Check your internet connection and refresh.
+          </div>
+        )}
+
+        {(syncStatus==="synced"||syncStatus==="syncing") && <>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12, marginBottom:24 }}>
             <div className="summary-card" style={{ borderColor:"rgba(34,197,94,0.3)" }}>
               <div style={{ fontSize:11, color:"#86efac", fontFamily:"'DM Mono',monospace", marginBottom:4 }}>INCOME</div>
